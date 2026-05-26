@@ -52,6 +52,14 @@ BASE_DIR = Path(__file__).parent
 CSV_FILE = BASE_DIR / "stocklist_20251023 のコピー - stock_list_20251011175958.csv"
 CACHE_FILE = BASE_DIR / "compounds_enriched.json"
 
+# Google Sheets 公開CSVのURL（真の出典）
+SHEETS_CSV_URL = (
+    "https://docs.google.com/spreadsheets/d/e/"
+    "2PACX-1vQjvSnff5cAv34qIaeDl33ZiQWQSyEo1TCkhqM09UKiNTo7STpirP7gJKhGYLhflbdEee2s6PIYBNxk"
+    "/pub?output=csv"
+)
+SHEETS_TTL_SECONDS = 300  # 5分ごとに自動再取得
+
 # ── 官能基 SMARTS 定義 ─────────────────────────────────────────────────────────
 FUNCTIONAL_GROUPS: dict[str, str] = {
     "アルコール":       "[OX2H][CX4]",
@@ -91,11 +99,25 @@ STORAGE_COLS = [
 
 
 # ── データ読み込み ──────────────────────────────────────────────────────────────
-@st.cache_data
-def load_data() -> pd.DataFrame:
+@st.cache_data(ttl=SHEETS_TTL_SECONDS, show_spinner=False)
+def _fetch_csv() -> tuple[pd.DataFrame, str]:
+    """Google Sheets から読み込む。失敗時はローカルCSVにフォールバック。
+    戻り値: (DataFrame, 取得元のラベル)
+    """
+    try:
+        df = pd.read_csv(SHEETS_CSV_URL, encoding="utf-8", header=0, low_memory=False)
+        return df, "Google Sheets"
+    except Exception as e:
+        st.warning(f"Google Sheets から取得失敗 → ローカルCSVを使用 ({e})")
+        df = pd.read_csv(CSV_FILE, encoding="utf-8-sig", header=0, low_memory=False)
+        return df, "ローカルCSV (フォールバック)"
+
+
+@st.cache_data(ttl=SHEETS_TTL_SECONDS, show_spinner=False)
+def load_data() -> tuple[pd.DataFrame, str]:
     import json
 
-    df = pd.read_csv(CSV_FILE, encoding="utf-8-sig", header=0, low_memory=False)
+    df, source = _fetch_csv()
     cols = list(df.columns)
     cols[0] = "薬品名"
     df.columns = cols
@@ -128,7 +150,7 @@ def load_data() -> pd.DataFrame:
 
     df["_storage"] = df.apply(_storage, axis=1)
 
-    return df
+    return df, source
 
 
 # ── 官能基検出 (RDKit) ─────────────────────────────────────────────────────────
@@ -237,7 +259,14 @@ def main():
     st.title("⚗️ 植草研 薬品ストックリスト")
 
     with st.spinner("データ読み込み中…"):
-        df = load_data()
+        df, data_source = load_data()
+
+    # サイドバー上部にデータ出典と更新ボタンを表示
+    st.sidebar.caption(f"📊 データ出典: **{data_source}**")
+    if st.sidebar.button("🔄 データを再取得", help=f"{SHEETS_TTL_SECONDS // 60}分間隔で自動更新されますが、即時更新したい場合に押してください"):
+        load_data.clear()
+        _fetch_csv.clear()
+        st.rerun()
 
     if not RDKIT_AVAILABLE:
         st.warning(
