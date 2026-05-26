@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Streamlit secrets (重要: ローカル機密情報を含む)
+.streamlit/secrets.toml
+
+# OneDrive 一時ファイル
+*.tmp
+~$*
+
+# ログ
+*.log
+
+# Claude Code ローカル設定
+.claude/

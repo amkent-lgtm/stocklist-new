@@ -1,0 +1,14 @@
+[client]
+# Deploy ボタン・三点リーダーメニューを非表示
+toolbarMode = "minimal"
+showSidebarNavigation = true
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+primaryColor = "#1976d2"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f5f5f5"
+textColor = "#222222"
+font = "sans serif"
