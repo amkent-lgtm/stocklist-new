@@ -92,13 +92,17 @@ if not _check_password():
     st.stop()
 
 # Streamlit標準UI要素を非表示にするCSS
+# ※ ヘッダー全体は隠さない（サイドバー開閉ボタンが含まれているため）
 st.markdown(
     """
     <style>
-    /* 右上のヘッダー（Deploy・三点リーダーを含む領域）を非表示 */
-    header[data-testid="stHeader"] { display: none; }
+    /* ヘッダー右側のツールバー（Deploy・三点リーダー）だけを非表示 */
+    header[data-testid="stHeader"] [data-testid="stToolbar"] { display: none !important; }
+    header[data-testid="stHeader"] [data-testid="stMainMenu"] { display: none !important; }
     /* "Made with Streamlit" フッターを非表示 */
     footer { display: none; }
+    /* ヘッダー自体は背景透過にして目立たなくする */
+    header[data-testid="stHeader"] { background: transparent; }
     /* メインコンテナの上余白を縮める */
     .block-container { padding-top: 1.5rem; }
     /* サイドバーの上余白も縮める */
