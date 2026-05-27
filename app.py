@@ -45,8 +45,10 @@ try:
     from rdkit import Chem
     from rdkit.Chem import Draw
     RDKIT_AVAILABLE = True
-except ImportError:
+    RDKIT_ERROR = ""
+except Exception as _e:
     RDKIT_AVAILABLE = False
+    RDKIT_ERROR = f"{type(_e).__name__}: {_e}"
 
 BASE_DIR = Path(__file__).parent
 CSV_FILE = BASE_DIR / "stocklist_20251023 のコピー - stock_list_20251011175958.csv"
@@ -273,6 +275,8 @@ def main():
             "⚠️ RDKitが未インストールのため構造式表示・官能基検索が使えません。  \n"
             "`pip install rdkit` を実行後アプリを再起動してください。"
         )
+        if RDKIT_ERROR:
+            st.caption(f"詳細エラー: `{RDKIT_ERROR}`")
 
     # 官能基を計算してDataFrameに追加
     if RDKIT_AVAILABLE:
