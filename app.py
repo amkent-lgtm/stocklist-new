@@ -25,6 +25,37 @@ st.set_page_config(
     },
 )
 
+
+# ── パスワード認証 ──────────────────────────────────────────────────────────────
+def _password_gate() -> bool:
+    """Secrets に password が設定されていれば、入力されるまでアプリ本体をブロックする。
+    設定されていなければ素通り（ローカル開発時など）。"""
+    try:
+        expected = st.secrets.get("password", None)
+    except Exception:
+        expected = None
+
+    if not expected:
+        return True  # パスワード未設定なら認証スキップ
+
+    if st.session_state.get("_authenticated") is True:
+        return True
+
+    st.title("🔒 ログイン")
+    st.write("研究室で共有されている合言葉を入力してください。")
+    pw = st.text_input("パスワード", type="password")
+    if st.button("ログイン", type="primary"):
+        if pw == expected:
+            st.session_state["_authenticated"] = True
+            st.rerun()
+        else:
+            st.error("パスワードが違います")
+    return False
+
+
+if not _password_gate():
+    st.stop()
+
 # ── パスワード認証 ──────────────────────────────────────────────────────────────
 def _check_password() -> bool:
     """Streamlit Secretsに保存されたパスワードと照合。正解なら以後の画面を表示。"""
