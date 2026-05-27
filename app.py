@@ -6,6 +6,7 @@
 """
 
 import base64
+import hmac
 from io import BytesIO
 from pathlib import Path
 
@@ -23,6 +24,41 @@ st.set_page_config(
         "Report a bug": None,
     },
 )
+
+# ── パスワード認証 ──────────────────────────────────────────────────────────────
+def _check_password() -> bool:
+    """Streamlit Secretsに保存されたパスワードと照合。正解なら以後の画面を表示。"""
+    correct_pw = st.secrets.get("password", None) if hasattr(st, "secrets") else None
+
+    if correct_pw is None:
+        st.error(
+            "⚠️ パスワードが設定されていません。  \n"
+            "管理者: Streamlit Cloud の App settings → Secrets で `password = \"...\"` を設定してください。"
+        )
+        st.stop()
+
+    if st.session_state.get("auth_ok"):
+        return True
+
+    def _verify():
+        entered = st.session_state.get("pw_input", "")
+        if hmac.compare_digest(str(entered), str(correct_pw)):
+            st.session_state["auth_ok"] = True
+            st.session_state.pop("pw_input", None)
+            st.session_state.pop("auth_failed", None)
+        else:
+            st.session_state["auth_failed"] = True
+
+    st.markdown("## 🔒 植草研 薬品ストックリスト")
+    st.write("研究室メンバー用のパスワードを入力してください。")
+    st.text_input("パスワード", type="password", key="pw_input", on_change=_verify)
+    if st.session_state.get("auth_failed"):
+        st.error("パスワードが違います。")
+    return False
+
+
+if not _check_password():
+    st.stop()
 
 # Streamlit標準UI要素を非表示にするCSS
 st.markdown(
