@@ -92,20 +92,35 @@ if not _check_password():
     st.stop()
 
 # Streamlit標準UI要素を非表示にするCSS
-# ※ ヘッダー全体は隠さない（サイドバー開閉ボタンが含まれているため）
+# ※ サイドバー開閉ボタンは必ず表示する
 st.markdown(
     """
     <style>
     /* ヘッダー右側のツールバー（Deploy・三点リーダー）だけを非表示 */
-    header[data-testid="stHeader"] [data-testid="stToolbar"] { display: none !important; }
-    header[data-testid="stHeader"] [data-testid="stMainMenu"] { display: none !important; }
+    header [data-testid="stToolbar"],
+    header [data-testid="stMainMenu"],
+    [data-testid="stToolbar"],
+    [data-testid="stDeployButton"] {
+        display: none !important;
+    }
     /* "Made with Streamlit" フッターを非表示 */
-    footer { display: none; }
-    /* ヘッダー自体は背景透過にして目立たなくする */
-    header[data-testid="stHeader"] { background: transparent; }
+    footer { display: none !important; }
+    /* ヘッダー自体は残して背景透過 */
+    header[data-testid="stHeader"] {
+        background: transparent !important;
+        height: auto !important;
+    }
+    /* サイドバー開閉ボタンを必ず表示・目立たせる */
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="stSidebarCollapseButton"],
+    button[kind="header"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        z-index: 999999 !important;
+    }
     /* メインコンテナの上余白を縮める */
-    .block-container { padding-top: 1.5rem; }
-    /* サイドバーの上余白も縮める */
+    .block-container { padding-top: 2rem; }
     section[data-testid="stSidebar"] .block-container { padding-top: 1.5rem; }
     </style>
     """,
