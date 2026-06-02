@@ -203,6 +203,7 @@ def load_data() -> tuple[pd.DataFrame, str]:
         df["薬品名"].map(lambda n: _get(n, "molecular_weight", None)), errors="coerce"
     )
     df["_pubchem_cid"]    = df["薬品名"].map(lambda n: _get(n, "pubchem_cid", 0))
+    df["_pka"]            = df["薬品名"].map(lambda n: _get(n, "pka", []) or [])
 
     # CSV既存SMILESを優先、なければ取得分を使用
     csv_smiles = df.get("SMILES", pd.Series([""] * len(df), index=df.index))
@@ -288,6 +289,35 @@ def render_card(row: pd.Series, img_b64: str) -> str:
         f'{fg}</span>'
         for fg in fg_list
     )
+
+    # pKa 表示 ── 実験値(緑)と予測値(灰)を区別
+    pka_list = row.get("_pka", []) or []
+    if pka_list:
+        items = []
+        has_exp = any(p.get("type") == "exp" for p in pka_list)
+        for pka in pka_list:
+            v = pka.get("value")
+            t = pka.get("type")
+            group = pka.get("group", "")
+            if t == "exp":
+                items.append(
+                    f'<span style="color:#2e7d32;font-weight:600;" '
+                    f'title="実験値（PubChem）">{v}</span>'
+                )
+            else:
+                items.append(
+                    f'<span style="color:#888;" title="予測値（{group}）">'
+                    f'{v}<sub style="font-size:9px;">予</sub></span>'
+                )
+        source_label = "実験値" if has_exp else "予測値"
+        pka_html = (
+            f'<div style="font-size:11px;color:#555;margin-top:4px;" '
+            f'title="緑=実験値、灰=官能基ベース予測">'
+            f'pKa ({source_label}): {", ".join(items)}</div>'
+        )
+    else:
+        pka_html = ""
+
     stock_color = "#2e7d32" if (unopened + opened) > 0 else "#c62828"
     stock_label = f"未開封 {unopened} / 開封 {opened}"
 
@@ -315,6 +345,7 @@ def render_card(row: pd.Series, img_b64: str) -> str:
       {stock_label}
     </div>
     <div style="margin-top:6px;">{fg_html}</div>
+    {pka_html}
     <div style="margin-top:4px;">{pubchem_link}</div>
   </div>
 </div>"""
