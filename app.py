@@ -344,8 +344,7 @@ def render_card(row: pd.Series, img_b64: str) -> str:
     <div style="font-size:11px;color:{stock_color};margin-top:2px;">
       {stock_label}
     </div>
-    <div style="margin-top:6px;">{fg_html}</div>
-    {pka_html}
+    <div style="margin-top:6px;">{fg_html}</div>{pka_html}
     <div style="margin-top:4px;">{pubchem_link}</div>
   </div>
 </div>"""
