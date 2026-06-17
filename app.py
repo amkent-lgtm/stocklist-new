@@ -7,11 +7,18 @@
 
 import base64
 import hmac
+import re
 from io import BytesIO
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+
+
+def _clean_cas(raw) -> str:
+    """CAS番号を正規化（空白除去 + 形式チェック）。不正値は空文字を返す。"""
+    s = re.sub(r"\s+", "", str(raw or ""))
+    return s if re.match(r"^\d+-\d+-\d+$", s) else ""
 
 st.set_page_config(
     page_title="植草研 薬品リスト",
@@ -193,17 +200,47 @@ def load_data() -> tuple[pd.DataFrame, str]:
         with open(CACHE_FILE, "r", encoding="utf-8") as f:
             enrichment = json.load(f)
 
-    def _get(name: str, key: str, default=""):
-        return enrichment.get(str(name).strip(), {}).get(key, default)
+    # CAS番号でのフォールバック検索用インデックスを構築
+    # （スプレッドシートで化合物名が変更されてもCASで引き当てられるように）
+    cas_to_data: dict[str, dict] = {}
+    if CSV_FILE.exists():
+        try:
+            ref = pd.read_csv(
+                CSV_FILE, encoding="utf-8-sig", header=0, low_memory=False
+            )
+            ref_cols = list(ref.columns)
+            ref_cols[0] = "薬品名"
+            ref.columns = ref_cols
+            for _, rr in ref.iterrows():
+                orig_name = str(rr.get("薬品名", "")).strip()
+                cas = _clean_cas(rr.get("CAS No.", ""))
+                if cas and orig_name in enrichment and enrichment[orig_name]:
+                    cas_to_data[cas] = enrichment[orig_name]
+        except Exception:
+            pass
 
-    df["_smiles_fetched"] = df["薬品名"].map(lambda n: _get(n, "smiles"))
-    df["_inchikey"]       = df["薬品名"].map(lambda n: _get(n, "inchikey"))
-    df["_mol_formula"]    = df["薬品名"].map(lambda n: _get(n, "molecular_formula"))
+    def _resolve(row) -> dict:
+        """1行に対し、まず化合物名で、ダメならCASで取得済みデータを引く。"""
+        name = str(row.get("薬品名", "")).strip()
+        data = enrichment.get(name)
+        if data:
+            return data
+        cas = _clean_cas(row.get("CAS No.", ""))
+        if cas:
+            return cas_to_data.get(cas, {})
+        return {}
+
+    df["_resolved"]       = df.apply(_resolve, axis=1)
+    df["_smiles_fetched"] = df["_resolved"].map(lambda d: d.get("smiles", ""))
+    df["_inchikey"]       = df["_resolved"].map(lambda d: d.get("inchikey", ""))
+    df["_mol_formula"]    = df["_resolved"].map(lambda d: d.get("molecular_formula", ""))
     df["_mol_weight"]     = pd.to_numeric(
-        df["薬品名"].map(lambda n: _get(n, "molecular_weight", None)), errors="coerce"
+        df["_resolved"].map(lambda d: d.get("molecular_weight", None)),
+        errors="coerce",
     )
-    df["_pubchem_cid"]    = df["薬品名"].map(lambda n: _get(n, "pubchem_cid", 0))
-    df["_pka"]            = df["薬品名"].map(lambda n: _get(n, "pka", []) or [])
+    df["_pubchem_cid"]    = df["_resolved"].map(lambda d: d.get("pubchem_cid", 0))
+    df["_pka"]            = df["_resolved"].map(lambda d: d.get("pka", []) or [])
+    df = df.drop(columns=["_resolved"])
 
     # CSV既存SMILESを優先、なければ取得分を使用
     csv_smiles = df.get("SMILES", pd.Series([""] * len(df), index=df.index))
