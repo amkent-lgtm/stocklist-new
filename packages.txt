@@ -1,5 +1,0 @@
-libxrender1
-libxext6
-libsm6
-libgl1
-libcairo2
