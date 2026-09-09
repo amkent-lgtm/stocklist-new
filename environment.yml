@@ -1,11 +1,12 @@
 name: stocklist
 channels:
   - conda-forge
+  - nodefaults
 dependencies:
   - python=3.11
   - pip
-  - streamlit>=1.28.0
-  - pandas>=2.0.0
-  - requests>=2.31.0
-  - rdkit>=2023.9.1
-  - pillow>=10.0.0
+  - streamlit
+  - pandas
+  - requests
+  - rdkit
+  - pillow
