@@ -349,10 +349,24 @@ def render_card(row: pd.Series, img_b64: str) -> str:
 
     mw_str = f"{mw:.1f}" if isinstance(mw, float) and mw > 0 else ""
 
+    # 画像ソースの優先順位:
+    #   1) rdkit がローカルで描画できる場合はその画像 (data URI)
+    #   2) PubChem CID があれば PubChem の構造式画像URL (サーバ側の描画ライブラリ不要)
+    cid_int = int(float(cid)) if cid else 0
+    if img_b64:
+        img_src = img_b64
+    elif cid_int:
+        img_src = (
+            f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{cid_int}"
+            "/PNG?image_size=280x200"
+        )
+    else:
+        img_src = ""
     img_html = (
-        f'<img src="{img_b64}" '
-        'style="width:100%;border-radius:6px;background:#fff;" />'
-        if img_b64
+        f'<img src="{img_src}" loading="lazy" alt="構造式" '
+        'style="width:100%;height:160px;object-fit:contain;'
+        'border-radius:6px;background:#fff;" />'
+        if img_src
         else '<div style="height:160px;background:#f5f5f5;display:flex;'
              'align-items:center;justify-content:center;color:#aaa;'
              'font-size:12px;border-radius:6px;">構造式なし</div>'
@@ -446,8 +460,8 @@ def main():
             st.caption(f"詳細エラー: `{RDKIT_ERROR}`")
     elif RDKIT_DRAW_MODE == "none":
         st.info(
-            "ℹ️ 構造式画像の描画ライブラリが読み込めないため、構造式は表示されません"
-            "（官能基検索・部分構造マッチは利用できます）。"
+            "ℹ️ サーバ側の描画ライブラリが使えないため、構造式は PubChem の画像で表示しています"
+            "（CID が未取得の一部化合物は「構造式なし」になります）。"
         )
 
     # 官能基を計算してDataFrameに追加
