@@ -356,9 +356,10 @@ def render_card(row: pd.Series, img_b64: str) -> str:
     if img_b64:
         img_src = img_b64
     elif cid_int:
+        # PubChem の画像配信サーバ(imgsrv)。同時大量アクセスに強く、構造式表示に最適。
+        # t=l は大きめ画像。
         img_src = (
-            f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{cid_int}"
-            "/PNG?image_size=280x200"
+            f"https://pubchem.ncbi.nlm.nih.gov/image/imgsrv.fcgi?cid={cid_int}&t=l"
         )
     else:
         img_src = ""
