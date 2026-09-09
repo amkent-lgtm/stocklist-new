@@ -112,14 +112,34 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# rdkit を段階的に import する。
+#   Chem : 官能基検索・部分構造マッチ（描画ライブラリ libXrender 不要で動く）
+#   描画 : 構造式画像。SVG(MolDraw2DSVG) は Cairo/libXrender 不要なので優先し、
+#          読み込めない場合のみ PIL/Cairo 版(Draw.MolToImage) を試す。
+# こうすることで、システムに libXrender 等が無い環境でも官能基検索は生かせる。
+RDKIT_AVAILABLE = False       # Chem が使えるか（官能基検索・部分構造マッチ）
+RDKIT_DRAW_MODE = "none"      # 構造式画像の描画方式: "svg" / "png" / "none"
+RDKIT_ERROR = ""
+Chem = None
+Draw = None
+rdMolDraw2D = None
+
 try:
     from rdkit import Chem
-    from rdkit.Chem import Draw
     RDKIT_AVAILABLE = True
-    RDKIT_ERROR = ""
 except Exception as _e:
-    RDKIT_AVAILABLE = False
     RDKIT_ERROR = f"{type(_e).__name__}: {_e}"
+
+if RDKIT_AVAILABLE:
+    try:
+        from rdkit.Chem.Draw import rdMolDraw2D  # SVG は libXrender 不要
+        RDKIT_DRAW_MODE = "svg"
+    except Exception:
+        try:
+            from rdkit.Chem import Draw          # PNG は Cairo/libXrender 必要
+            RDKIT_DRAW_MODE = "png"
+        except Exception:
+            RDKIT_DRAW_MODE = "none"
 
 BASE_DIR = Path(__file__).parent
 CSV_FILE = BASE_DIR / "stocklist_20251023 のコピー - stock_list_20251011175958.csv"
@@ -284,17 +304,34 @@ def compute_functional_groups(smiles_series: pd.Series) -> list[list[str]]:
 
 # ── 構造式画像 ──────────────────────────────────────────────────────────────────
 @st.cache_data
-def smiles_to_png_b64(smiles: str, width: int = 280, height: int = 200) -> str:
-    """SMILESをbase64 PNG文字列に変換。失敗時は空文字。"""
+def smiles_to_img_src(smiles: str, width: int = 280, height: int = 200) -> str:
+    """SMILES を <img src> 用の data URI に変換。失敗時は空文字。
+    SVG(libXrender 不要) を優先し、無理なら PNG(Cairo) を試す。"""
     if not RDKIT_AVAILABLE or not smiles or str(smiles).strip() == "":
         return ""
     mol = Chem.MolFromSmiles(str(smiles))
     if mol is None:
         return ""
-    img = Draw.MolToImage(mol, size=(width, height))
-    buf = BytesIO()
-    img.save(buf, format="PNG")
-    return base64.b64encode(buf.getvalue()).decode()
+    if RDKIT_DRAW_MODE == "svg":
+        try:
+            d = rdMolDraw2D.MolDraw2DSVG(width, height)
+            d.DrawMolecule(mol)
+            d.FinishDrawing()
+            svg = d.GetDrawingText()
+            b64 = base64.b64encode(svg.encode("utf-8")).decode()
+            return f"data:image/svg+xml;base64,{b64}"
+        except Exception:
+            return ""
+    if RDKIT_DRAW_MODE == "png":
+        try:
+            img = Draw.MolToImage(mol, size=(width, height))
+            buf = BytesIO()
+            img.save(buf, format="PNG")
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            return f"data:image/png;base64,{b64}"
+        except Exception:
+            return ""
+    return ""
 
 
 # ── カード HTML ─────────────────────────────────────────────────────────────────
@@ -313,7 +350,7 @@ def render_card(row: pd.Series, img_b64: str) -> str:
     mw_str = f"{mw:.1f}" if isinstance(mw, float) and mw > 0 else ""
 
     img_html = (
-        f'<img src="data:image/png;base64,{img_b64}" '
+        f'<img src="{img_b64}" '
         'style="width:100%;border-radius:6px;background:#fff;" />'
         if img_b64
         else '<div style="height:160px;background:#f5f5f5;display:flex;'
@@ -403,11 +440,15 @@ def main():
 
     if not RDKIT_AVAILABLE:
         st.warning(
-            "⚠️ RDKitが未インストールのため構造式表示・官能基検索が使えません。  \n"
-            "`pip install rdkit` を実行後アプリを再起動してください。"
+            "⚠️ RDKit が読み込めないため、構造式表示・官能基検索が使えません。"
         )
         if RDKIT_ERROR:
             st.caption(f"詳細エラー: `{RDKIT_ERROR}`")
+    elif RDKIT_DRAW_MODE == "none":
+        st.info(
+            "ℹ️ 構造式画像の描画ライブラリが読み込めないため、構造式は表示されません"
+            "（官能基検索・部分構造マッチは利用できます）。"
+        )
 
     # 官能基を計算してDataFrameに追加
     if RDKIT_AVAILABLE:
@@ -531,7 +572,7 @@ def main():
             for j, (_, row) in enumerate(row_group.iterrows()):
                 with cols[j]:
                     smi = str(row.get("_smiles", "")).strip()
-                    img = smiles_to_png_b64(smi)
+                    img = smiles_to_img_src(smi)
                     st.markdown(render_card(row, img), unsafe_allow_html=True)
                     st.write("")  # spacing
 
